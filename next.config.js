@@ -7,12 +7,10 @@ const nextConfig = {
   },
 
   reactStrictMode: true,
-  // Cloudflare Pages compatible output
-  output: "export",
 
   // Images optimization for Cloudflare Pages
   images: {
-    unoptimized: true, // Required for static export / CF Pages
+    unoptimized: true, // Required for CF Pages
     remotePatterns: [
       { protocol: "https", hostname: "*.tiktokcdn.com" },
       { protocol: "https", hostname: "p16-va.tiktokcdn.com" },

@@ -12,7 +12,7 @@ env:
   NODE_VERSION: "20"
 
 jobs:
-  # Deploy Next.js frontend to Cloudflare Pages
+  # Deploy Next.js + API routes to Cloudflare Pages using @cloudflare/next-on-pages
   deploy-pages:
     name: Deploy to Cloudflare Pages
     runs-on: ubuntu-latest
@@ -30,8 +30,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Next.js
-        run: npm run build
+      - name: Build with @cloudflare/next-on-pages
+        run: npx @cloudflare/next-on-pages
         env:
           NEXT_PUBLIC_SITE_URL: https://gramdominator.com
 
@@ -41,11 +41,11 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: gramdominator
-          directory: out  # Next.js static export output
+          directory: .vercel/output/static # Output from @cloudflare/next-on-pages
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           wranglerVersion: "3"
 
-  # Deploy Workers backend
+  # Deploy Workers backend (separate from Pages)
   deploy-workers:
     name: Deploy Cloudflare Workers
     runs-on: ubuntu-latest
@@ -61,7 +61,7 @@ jobs:
       - name: Install Wrangler
         run: npm install -g wrangler
 
-      - name: Deploy Workers
+      - name: Deploy Workers (Scraper backend)
         run: wrangler deploy
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
