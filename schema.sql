@@ -9,7 +9,9 @@ CREATE TABLE IF NOT EXISTS audio_trends (
     rank INTEGER,
     growth_rate REAL,
     genre TEXT,
+    genre_lower TEXT GENERATED ALWAYS AS (lower(genre)) STORED,
     vibe TEXT,
+    vibe_lower TEXT GENERATED ALWAYS AS (lower(vibe)) STORED,
     cover_url TEXT,
     updated_at INTEGER,
     PRIMARY KEY (platform, id)
@@ -36,11 +38,33 @@ CREATE TABLE IF NOT EXISTS hashtags (
     PRIMARY KEY (platform, slug)
 );
 
--- Indexes for fast lookup
-CREATE INDEX IF NOT EXISTS idx_audio_rank ON audio_trends(platform, rank);
-CREATE INDEX IF NOT EXISTS idx_audio_genre ON audio_trends(platform, genre);
-CREATE INDEX IF NOT EXISTS idx_audio_vibe ON audio_trends(platform, vibe);
-CREATE INDEX IF NOT EXISTS idx_audio_updated_at ON audio_trends(updated_at);
+-- Composite indexes for optimized query patterns
+-- Index for genre-based queries with ranking
+CREATE INDEX IF NOT EXISTS idx_audio_platform_genre_rank
+ON audio_trends(platform, genre_lower, rank)
+WHERE genre_lower IS NOT NULL;
+
+-- Index for vibe-based queries with ranking
+CREATE INDEX IF NOT EXISTS idx_audio_platform_vibe_rank
+ON audio_trends(platform, vibe_lower, rank)
+WHERE vibe_lower IS NOT NULL;
+
+-- Index for platform ranking queries
+CREATE INDEX IF NOT EXISTS idx_audio_platform_rank
+ON audio_trends(platform, rank)
+WHERE rank IS NOT NULL;
+
+-- Index for cache invalidation and sitemap queries
+CREATE INDEX IF NOT EXISTS idx_audio_platform_updated
+ON audio_trends(platform, updated_at DESC);
+
+-- History snapshot index
 CREATE INDEX IF NOT EXISTS idx_audio_history_snapshot ON audio_trend_history(snapshot_at);
-CREATE INDEX IF NOT EXISTS idx_hashtag_volume ON hashtags(platform, volume);
-CREATE INDEX IF NOT EXISTS idx_hashtag_updated_at ON hashtags(updated_at);
+
+-- Hashtag indexes
+CREATE INDEX IF NOT EXISTS idx_hashtag_platform_volume
+ON hashtags(platform, volume DESC)
+WHERE volume IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_hashtag_platform_updated
+ON hashtags(platform, updated_at DESC);

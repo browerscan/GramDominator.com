@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     template: "%s | GramDominator",
   },
   description:
-    "Track TikTok audio trends, measure growth, and ship viral content faster with GramDominator.",
+    "Track TikTok audio trends in real-time. Discover viral sounds before they peak with 4x daily updates and growth analytics.",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://gramdominator.com",
   ),
@@ -50,11 +50,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: "GramDominator | Viral Audio Intelligence",
     description:
-      "Monitor the fastest-growing audio trends and publish smarter content using GramDominator.",
+      "Track TikTok audio trends in real-time. Discover viral sounds before they peak with 4x daily updates and growth analytics.",
     type: "website",
     images: [
       {
-        url: "/og-default.jpg",
+        url: "/api/og/home",
         width: 1200,
         height: 630,
         alt: "GramDominator",
@@ -65,8 +65,8 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "GramDominator | Viral Audio Intelligence",
     description:
-      "Monitor the fastest-growing audio trends and publish smarter content using GramDominator.",
-    images: ["/og-default.jpg"],
+      "Track TikTok audio trends in real-time. Discover viral sounds before they peak with 4x daily updates and growth analytics.",
+    images: ["/api/og/home"],
   },
   verification: {
     google: process.env.GOOGLE_SITE_VERIFICATION,

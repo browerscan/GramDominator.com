@@ -1,6 +1,25 @@
 import { Ai } from "@cloudflare/ai";
 import type { Env } from "./types";
 
+// Import logger conditionally for worker environment
+let logger: typeof import("../../lib/logger").logger;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const loggerModule = require("../../lib/logger");
+  logger = loggerModule.logger;
+} catch {
+  // Fallback to console if logger module not available in worker context
+  logger = {
+    error: (...args: unknown[]) => console.error("[AiTagger]", ...args),
+    warn: (...args: unknown[]) => console.warn("[AiTagger]", ...args),
+    info: (...args: unknown[]) => console.info("[AiTagger]", ...args),
+    debug: (...args: unknown[]) => console.log("[AiTagger]", ...args),
+    exception: (error: Error, context?: Record<string, unknown>) => {
+      console.error("[AiTagger]", error.message, context);
+    },
+  };
+}
+
 interface TagResult {
   genre: string;
   vibe: string;
@@ -80,7 +99,7 @@ Return ONLY a JSON object: {"genre": "Pop/Rap/Electronic/etc", "vibe": "Energeti
     const parsed = parseAiResponse(response);
     return normalizeTags(parsed.genre, parsed.vibe);
   } catch (error) {
-    console.error("AI tagging failed", error);
+    logger.error("AI tagging failed", error);
     return heuristicTags(title, author);
   }
 }

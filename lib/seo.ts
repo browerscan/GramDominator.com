@@ -323,13 +323,27 @@ export interface MusicRecordingSchemaOptions {
   thumbnailUrl?: string | null;
   url?: string;
   datePublished?: string | null;
+  aggregateRating?: {
+    ratingValue: number;
+    ratingCount: number;
+    bestRating?: number;
+    worstRating?: number;
+  };
 }
 
 export function buildMusicRecordingSchema(
   options: MusicRecordingSchemaOptions,
 ) {
-  const { name, author, playCount, genre, thumbnailUrl, url, datePublished } =
-    options;
+  const {
+    name,
+    author,
+    playCount,
+    genre,
+    thumbnailUrl,
+    url,
+    datePublished,
+    aggregateRating,
+  } = options;
 
   const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -366,6 +380,16 @@ export function buildMusicRecordingSchema(
 
   if (datePublished) {
     schema.datePublished = datePublished;
+  }
+
+  if (aggregateRating) {
+    schema.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: aggregateRating.ratingValue,
+      ratingCount: aggregateRating.ratingCount,
+      bestRating: aggregateRating.bestRating ?? 5,
+      worstRating: aggregateRating.worstRating ?? 1,
+    };
   }
 
   return schema;

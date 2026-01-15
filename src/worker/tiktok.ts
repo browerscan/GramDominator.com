@@ -1,6 +1,25 @@
 import puppeteer from "@cloudflare/puppeteer";
 import type { Env, TrendItem } from "./types";
 
+// Import logger conditionally for worker environment
+let logger: typeof import("../../lib/logger").logger;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const loggerModule = require("../../lib/logger");
+  logger = loggerModule.logger;
+} catch {
+  // Fallback to console if logger module not available in worker context
+  logger = {
+    error: (...args: unknown[]) => console.error("[TikTokScraper]", ...args),
+    warn: (...args: unknown[]) => console.warn("[TikTokScraper]", ...args),
+    info: (...args: unknown[]) => console.info("[TikTokScraper]", ...args),
+    debug: (...args: unknown[]) => console.log("[TikTokScraper]", ...args),
+    exception: (error: Error, context?: Record<string, unknown>) => {
+      console.error("[TikTokScraper]", error.message, context);
+    },
+  };
+}
+
 const TARGET_URL =
   "https://ads.tiktok.com/business/creativecenter/inspiration/popular/music/pc/en";
 
@@ -82,7 +101,13 @@ function logWithContext(
   const contextStr = Object.entries(context)
     .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
     .join(" ");
-  console[level](`[TikTokScraper] ${message} ${contextStr}`);
+  const logFn =
+    level === "error"
+      ? logger.error
+      : level === "warn"
+        ? logger.warn
+        : logger.info;
+  logFn(`[TikTokScraper] ${message} ${contextStr}`);
 }
 
 function canExecuteCircuit(breaker: CircuitBreakerState): boolean {
@@ -709,6 +734,6 @@ async function sendAlert(env: Env, message: string) {
       }),
     });
   } catch (error) {
-    console.error("Failed to send Slack alert", error);
+    logger.error("Failed to send Slack alert", error);
   }
 }

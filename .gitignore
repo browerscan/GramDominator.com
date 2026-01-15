@@ -1,8 +1,46 @@
+# Dependencies
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Next.js
 .next/
+out/
+.vercel/
+build/
+dist/
+
+# Environment variables (SECURITY!)
 .env
 .env.*
 .env.local
+.env.production.local
+.env.development.local
+.env.test.local
+
+# Wrangler (SECURITY!)
 .wrangler/
-.DS_Store
 wrangler.toml
+.wrangler.toml
+
+# Testing
+coverage/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Misc
+.DS_Store
+*.log
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.turbo/
+
+# Worker specific
+.worker-artifacts/
+.mf/

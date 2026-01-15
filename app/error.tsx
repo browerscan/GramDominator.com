@@ -3,10 +3,12 @@
 /**
  * Global Error Boundary
  * Catches and handles JavaScript errors in React components
+ * Enhanced with error recovery and Sentry preparation
  */
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { logger } from "@/lib/logger";
 
 export default function Error({
   error,
@@ -16,11 +18,19 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Log error to error reporting service
-    console.error("Application error:", error);
+    const errorContext = {
+      digest: error.digest,
+      timestamp: new Date().toISOString(),
+      url: typeof window !== "undefined" ? window.location.href : "unknown",
+    };
+
+    logger.exception(error, errorContext);
 
     // TODO: Send to error reporting service (e.g., Sentry)
-    // logErrorToService(error);
+    // Sentry.captureException(error, {
+    //   tags: { digest: error.digest },
+    //   extra: errorContext,
+    // });
   }, [error]);
 
   return (
@@ -60,6 +70,7 @@ export default function Error({
           <pre className="mt-2 overflow-auto rounded-lg bg-black/5 p-4 text-xs text-black/80">
             {error.message}
             {error.stack && `\n\n${error.stack}`}
+            {error.digest && `\n\nDigest: ${error.digest}`}
           </pre>
         </details>
       )}

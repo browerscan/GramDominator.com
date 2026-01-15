@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/og-tools.jpg",
+        url: "/api/og/image/tools",
         width: 1200,
         height: 630,
         alt: "Creator Tools | GramDominator",
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Creator Tools | GramDominator",
     description: "Free TikTok watermark remover and AI bio generator.",
-    images: ["/og-tools.jpg"],
+    images: ["/api/og/image/tools"],
   },
 };
 

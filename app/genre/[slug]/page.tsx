@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
 
 import { TrendTable } from "@/components/TrendTable";
 import { JsonLd } from "@/components/JsonLd";
@@ -12,6 +14,8 @@ import {
   getSiteUrl,
 } from "@/lib/seo";
 import { buildAudioSlug } from "@/lib/slug";
+import { fetchSimilarTrends } from "@/lib/proxy-grid";
+import { formatNumber } from "@/lib/format";
 
 export const runtime = "edge";
 export const revalidate = 900;
@@ -72,6 +76,10 @@ export default async function GenrePage({ params }: PageProps) {
   const trends = await getAudioByGenre(genre.slug, 50);
   const siteUrl = getSiteUrl();
 
+  const similarResponse = await fetchSimilarTrends(genre.label, genre.slug, {
+    maxResults: 6,
+  });
+
   // Build collection schema
   const collectionSchema = buildCollectionSchema({
     name: `${genre.label} TikTok Songs & Trends`,
@@ -119,6 +127,68 @@ export default async function GenrePage({ params }: PageProps) {
       <section className="mt-10">
         <TrendTable data={trends} />
       </section>
+
+      {similarResponse.trends.length > 0 && (
+        <section className="mt-12">
+          <h2 className="font-display text-xl font-semibold">
+            Related {genre.label} discoveries
+          </h2>
+          <p className="mt-1 text-sm text-black/60">
+            Explore more sounds in the {genre.label} space.
+          </p>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            {similarResponse.trends.map((item) => (
+              <Link
+                key={item.id}
+                href={`/audio/${buildAudioSlug(item.title, item.id)}`}
+                className="group glass-card rounded-2xl p-4 transition hover:-translate-y-1"
+              >
+                <div className="flex items-start gap-3">
+                  {item.cover_url && item.cover_url.startsWith("http") ? (
+                    <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg">
+                      <Image
+                        src={item.cover_url}
+                        alt={item.title}
+                        fill
+                        sizes="56px"
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg bg-black/5">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-6 w-6 text-black/20"
+                      >
+                        <path d="M9 18V5l12-2v13" />
+                        <circle cx="6" cy="18" r="3" />
+                        <circle cx="18" cy="16" r="3" />
+                      </svg>
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-black group-hover:text-blaze">
+                      {item.title}
+                    </p>
+                    <p className="mt-1 truncate text-xs text-black/50">
+                      {item.author ?? "Unknown artist"}
+                    </p>
+                    <p className="mt-2 text-xs text-black/60">
+                      {formatNumber(item.play_count)} uses
+                    </p>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <JsonLd data={collectionSchema} />
       <JsonLd data={faqSchema} />

@@ -4,16 +4,20 @@ import type { Metadata } from "next";
 import { AffiliateBanner } from "@/components/AffiliateBanner";
 import { TrendTable } from "@/components/TrendTable";
 import { JsonLd } from "@/components/JsonLd";
+import { RecentlyViewed } from "@/components/RecentlyViewed";
+import { Suspense } from "react";
+import { CardSkeleton } from "@/components/Skeleton";
 import { COLLECTIONS } from "@/lib/categories";
 import { getTrendsWithFallback } from "@/lib/fallback-data";
 import { buildAudioSlug } from "@/lib/slug";
-import { formatDate, formatPercent } from "@/lib/format";
+import { formatDate, formatPercent, formatNumber } from "@/lib/format";
 import {
   buildCanonical,
   buildFaqSchema,
   buildCollectionSchema,
   getSiteUrl,
 } from "@/lib/seo";
+import { fetchRedditPosts } from "@/lib/proxy-grid";
 
 export const runtime = "edge";
 export const revalidate = 900;
@@ -42,7 +46,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/og-trends.jpg",
+        url: "/api/og/trends",
         width: 1200,
         height: 630,
         alt: "TikTok Trends Today",
@@ -54,11 +58,11 @@ export const metadata: Metadata = {
     title: "TikTok Trends Today | GramDominator",
     description:
       "Real-time TikTok audio leaderboard with growth rates, vibes, and genres.",
-    images: ["/og-trends.jpg"],
+    images: ["/api/og/trends"],
   },
 };
 
-export default async function TrendsPage() {
+async function TrendsContent() {
   // Use fallback data pattern for graceful degradation
   const trends = await getTrendsWithFallback(50);
   const updatedAt = trends[0]?.updated_at ?? null;
@@ -66,6 +70,9 @@ export default async function TrendsPage() {
     .filter((trend) => trend.growth_rate !== null)
     .sort((a, b) => (b.growth_rate ?? 0) - (a.growth_rate ?? 0))
     .slice(0, 1)[0];
+
+  const redditQuery = "tiktok trending audio";
+  const redditResponse = await fetchRedditPosts(redditQuery, { maxResults: 4 });
 
   const siteUrl = getSiteUrl();
 
@@ -159,8 +166,74 @@ export default async function TrendsPage() {
         </div>
       </section>
 
+      {redditResponse.posts.length > 0 && (
+        <section className="mt-12">
+          <h2 className="font-display text-xl font-semibold">
+            Community discussions
+          </h2>
+          <p className="mt-1 text-sm text-black/60">
+            What creators are saying about TikTok trends.
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {redditResponse.posts.slice(0, 4).map((post) => (
+              <a
+                key={post.id}
+                href={post.url}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex items-start gap-3 rounded-xl border border-black/5 bg-white/60 p-4 transition hover:border-black/10 hover:bg-white/80"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="line-clamp-2 text-sm font-semibold text-black group-hover:text-blaze">
+                    {post.title}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-black/50">
+                    <span className="rounded-full bg-orange-100 px-2 py-0.5 font-medium text-orange-700">
+                      r/{post.subreddit}
+                    </span>
+                    <span>{formatNumber(post.score)} points</span>
+                    <span>·</span>
+                    <span>{post.comments} comments</span>
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+          <a
+            href="https://www.reddit.com/search/?q=tiktok+trending+audio"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-blaze hover:underline"
+          >
+            View more discussions on Reddit
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-3 w-3"
+            >
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </a>
+        </section>
+      )}
+
       <JsonLd data={collectionSchema} />
       <JsonLd data={faqSchema} />
     </div>
+  );
+}
+
+export default function TrendsPage() {
+  return (
+    <Suspense fallback={<CardSkeleton />}>
+      <TrendsContent />
+    </Suspense>
   );
 }

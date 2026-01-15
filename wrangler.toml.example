@@ -1,8 +1,14 @@
+# Cloudflare Workers Configuration Template
+# Copy this to wrangler.toml and fill in your values
+# NEVER commit wrangler.toml with real credentials!
+
 name = "gramdominator-scraper"
 main = "src/index.ts"
 compatibility_date = "2026-01-08"
 compatibility_flags = ["nodejs_compat"]
-workers_dev = true
+
+# Environment variables (set via CLOUDFLARE_ACCOUNT_ID env var)
+# account_id = "" # DO NOT hardcode - use CLOUDFLARE_ACCOUNT_ID environment variable
 
 # Browser Rendering binding
 [browser]
@@ -15,7 +21,7 @@ binding = "AI"
 # D1 database binding
 [[d1_databases]]
 binding = "DB"
-database_name = "followers-db"
+database_name = "gramdominator-db"
 # Set via environment variable: CLOUDFLARE_D1_DATABASE_ID
 database_id = ""
 
@@ -23,11 +29,28 @@ database_id = ""
 [triggers]
 crons = ["0 */6 * * *"]
 
-# Set with: wrangler secret put CRON_SECRET
+# Routes for Workers (optional - for custom domain)
+# routes = [
+#   { pattern = "api.gramdominator.com/*", zone_name = "gramdominator.com" }
+# ]
 
-# Optional vars (set via `wrangler secret put` or `wrangler vars put`):
+# ==================== SECTIONS ====================
+# Set with: wrangler secret put <SECRET_NAME>
+#
+# Required secrets:
+# - CRON_SECRET: secret for cron trigger validation
+# - CLOUDFLARE_API_TOKEN: for deployment
+#
+# Optional secrets:
 # - API_TOKEN: token for /api/v1 endpoints
 # - AI_TAG_LIMIT: max AI tags per run (default 15)
 # - PROXY_GRID_SECRET: secret for Proxy Grid fallback
 # - PROXY_GRID_BASE: override base URL (default http://google.savedimage.com)
 # - SLACK_WEBHOOK_URL: notify on scraper fallback/error
+# - GITHUB_TOKEN: for GitHub operations (if needed)
+
+# ==================== ENVIRONMENT VARIABLES ====================
+# Export these before running wrangler:
+# export CLOUDFLARE_ACCOUNT_ID="your-account-id"
+# export CLOUDFLARE_API_TOKEN="your-api-token"
+# export CLOUDFLARE_D1_DATABASE_ID="your-d1-id"

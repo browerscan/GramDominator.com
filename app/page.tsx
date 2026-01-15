@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { JsonLd } from "@/components/JsonLd";
+import { buildFaqSchema } from "@/lib/seo";
 
 export default function HomePage() {
   return (
@@ -83,6 +85,32 @@ export default function HomePage() {
           </div>
         ))}
       </section>
+
+      {/* Structured Data */}
+      <JsonLd
+        data={buildFaqSchema([
+          {
+            question: "What is GramDominator?",
+            answer:
+              "GramDominator is a viral audio intelligence platform that tracks TikTok audio trends with growth metrics refreshed every six hours.",
+          },
+          {
+            question: "How often are TikTok audio trends updated?",
+            answer:
+              "Trend data refreshes 4 times daily (every six hours) with historical growth deltas attached to each snapshot.",
+          },
+          {
+            question: "How do I use GramDominator to find viral sounds?",
+            answer:
+              "Browse the live trends page, filter by genre or vibe, and sort by growth rate to identify rising audio before it peaks.",
+          },
+          {
+            question: "Is GramDominator free to use?",
+            answer:
+              "Yes, GramDominator provides free access to TikTok audio trend data including usage counts, growth rates, and creator insights.",
+          },
+        ])}
+      />
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
 } from "../lib/api-response";
 import { CACHE_CONFIG } from "../lib/cache";
 import { RATE_LIMIT_CONFIGS, applyRateLimit } from "../lib/rate-limit";
+import { logger } from "../lib/logger";
 
 const PLATFORM = "tiktok";
 
@@ -94,7 +95,7 @@ export default {
             source: result.source ?? "puppeteer",
           });
 
-          console.log(
+          logger.info(
             `[Cron] Pipeline completed in ${duration}ms`,
             JSON.stringify(result),
           );
@@ -114,7 +115,7 @@ export default {
               error instanceof Error ? error.message : String(error),
           });
 
-          console.error("[Cron] Pipeline failed", error);
+          logger.error("[Cron] Pipeline failed", error);
         }
       })(),
     );
@@ -162,7 +163,7 @@ export default {
       const result = await runPipeline(env, { manual: true });
       return successResponse(result, { requestId });
     } catch (error) {
-      console.error("Pipeline failed", error);
+      logger.error("Pipeline failed", error);
       return errorResponse(
         error instanceof Error ? error.message : String(error),
         {
@@ -288,7 +289,7 @@ async function recordCronExecution(
 
     await kvPut(CRON_EXECUTION_KEY, JSON.stringify(updated), 86400);
   } catch (error) {
-    console.error("Failed to record cron execution", error);
+    logger.error("Failed to record cron execution", error);
   }
 }
 
@@ -317,7 +318,7 @@ async function recordCronFailure(env: Env): Promise<void> {
 
     await kvPut(CRON_EXECUTION_KEY, JSON.stringify(updated), 86400);
   } catch (error) {
-    console.error("Failed to record cron failure", error);
+    logger.error("Failed to record cron failure", error);
   }
 }
 
@@ -376,7 +377,7 @@ async function recordMetrics(
 
     await kvPut(METRICS_KEY, JSON.stringify(daily), 86400 * 7);
   } catch (error) {
-    console.error("Failed to record metrics", error);
+    logger.error("Failed to record metrics", error);
   }
 }
 
@@ -627,7 +628,7 @@ async function maybeIngestHashtags(env: Env, timestamp: number) {
 
     return { status: "success", count: hashtags.length };
   } catch (error) {
-    console.error("Hashtag ingest failed", error);
+    logger.error("Hashtag ingest failed", error);
     return { status: "error", message: (error as Error).message };
   }
 }

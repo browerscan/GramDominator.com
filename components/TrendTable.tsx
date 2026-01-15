@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import {
   ColumnDef,
   SortingState,
@@ -20,20 +20,63 @@ import { formatNumber, formatPercent, getGrowthLabel } from "@/lib/format";
 import { exportToCsv } from "@/lib/export-csv";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { ShareButton } from "@/components/ShareButton";
+import { CopyTikTokButton } from "@/components/CopyTikTokButton";
+import { useDebounce } from "@/hooks/useDebounce";
+import {
+  TrendTableHeader,
+  FilterButtons,
+  MobileCard,
+  EmptyState,
+  ActiveFilters,
+  type FreshnessStatus,
+} from "./trend-table";
 
 interface TrendTableProps {
   data: AudioTrendRow[];
+  updatedAt?: number | null;
 }
 
 const FILTER_PARAM_GENRE = "genre";
 const FILTER_PARAM_VIBE = "vibe";
 const FILTER_PARAM_QUERY = "q";
 
-export function TrendTable({ data }: TrendTableProps) {
+function getFreshnessStatus(timestamp?: number | null): FreshnessStatus {
+  if (!timestamp) {
+    return { label: "Unknown", color: "bg-gray-400", isStale: true };
+  }
+
+  const hoursSinceUpdate = (Date.now() - timestamp) / (1000 * 60 * 60);
+
+  if (hoursSinceUpdate < 3) {
+    return { label: "Just now", color: "bg-emerald-500", isStale: false };
+  }
+  if (hoursSinceUpdate < 12) {
+    return {
+      label: `${Math.floor(hoursSinceUpdate)}h ago`,
+      color: "bg-emerald-500",
+      isStale: false,
+    };
+  }
+  if (hoursSinceUpdate < 24) {
+    return {
+      label: `${Math.floor(hoursSinceUpdate)}h ago`,
+      color: "bg-amber-500",
+      isStale: false,
+    };
+  }
+  return {
+    label: `${Math.floor(hoursSinceUpdate / 24)}d ago`,
+    color: "bg-red-500",
+    isStale: true,
+  };
+}
+
+export function TrendTable({ data, updatedAt }: TrendTableProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const [globalFilter, setGlobalFilter] = useState("");
+  const debouncedFilter = useDebounce(globalFilter, 300);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [selectedVibe, setSelectedVibe] = useState<string | null>(null);
@@ -57,11 +100,11 @@ export function TrendTable({ data }: TrendTableProps) {
     const params = new URLSearchParams();
     if (selectedGenre) params.set(FILTER_PARAM_GENRE, selectedGenre);
     if (selectedVibe) params.set(FILTER_PARAM_VIBE, selectedVibe);
-    if (globalFilter) params.set(FILTER_PARAM_QUERY, globalFilter);
+    if (debouncedFilter) params.set(FILTER_PARAM_QUERY, debouncedFilter);
 
     const newUrl = params.toString() ? `?${params.toString()}` : "";
     router.replace(newUrl, { scroll: false });
-  }, [selectedGenre, selectedVibe, globalFilter, isInitialized, router]);
+  }, [selectedGenre, selectedVibe, debouncedFilter, isInitialized, router]);
 
   const filteredData = useMemo(() => {
     return data.filter((item) => {
@@ -71,19 +114,35 @@ export function TrendTable({ data }: TrendTableProps) {
       const vibeMatch = selectedVibe
         ? item.vibe?.toLowerCase() === selectedVibe
         : true;
-      return genreMatch && vibeMatch;
+      const searchMatch = debouncedFilter
+        ? (item.title?.toLowerCase().includes(debouncedFilter.toLowerCase()) ??
+            false) ||
+          (item.author?.toLowerCase().includes(debouncedFilter.toLowerCase()) ??
+            false)
+        : true;
+      return genreMatch && vibeMatch && searchMatch;
     });
-  }, [data, selectedGenre, selectedVibe]);
+  }, [data, selectedGenre, selectedVibe, debouncedFilter]);
 
-  const handleExportCsv = () => {
+  const handleExportCsv = useCallback(() => {
     const filename =
       selectedGenre || selectedVibe
         ? `gramdominator-${selectedGenre ?? ""}-${selectedVibe ?? ""}-trends.csv`
         : "gramdominator-trends.csv";
     exportToCsv(filteredData, filename);
-  };
+  }, [filteredData, selectedGenre, selectedVibe]);
 
-  const hasActiveFilters = selectedGenre || selectedVibe || globalFilter;
+  const handleClearFilters = useCallback(() => {
+    setSelectedGenre(null);
+    setSelectedVibe(null);
+    setGlobalFilter("");
+  }, []);
+
+  const hasActiveFilters = Boolean(
+    selectedGenre || selectedVibe || globalFilter,
+  );
+
+  const freshness = getFreshnessStatus(updatedAt);
 
   const columns = useMemo<ColumnDef<AudioTrendRow>[]>(
     () => [
@@ -173,6 +232,7 @@ export function TrendTable({ data }: TrendTableProps) {
               >
                 Use audio
               </a>
+              <CopyTikTokButton audioId={row.original.id} />
             </div>
           );
         },
@@ -184,7 +244,7 @@ export function TrendTable({ data }: TrendTableProps) {
   const table = useReactTable({
     data: filteredData,
     columns,
-    state: { globalFilter, sorting },
+    state: { globalFilter: debouncedFilter, sorting },
     onGlobalFilterChange: setGlobalFilter,
     onSortingChange: setSorting,
     globalFilterFn: "includesString",
@@ -195,111 +255,45 @@ export function TrendTable({ data }: TrendTableProps) {
 
   return (
     <div className="rounded-2xl border border-black/10 bg-white/80 p-6 shadow-glow">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="font-display text-xl font-semibold">
-            Live audio signals
-          </h2>
-          <p className="text-sm text-black/60">
-            Filter by title or artist to find your next viral hook.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            value={globalFilter ?? ""}
-            onChange={(event) => setGlobalFilter(event.target.value)}
-            placeholder="Search audio"
-            className="w-full rounded-full border border-black/10 bg-white/80 px-4 py-2 text-sm text-black/70 outline-none transition focus:border-black/20 md:w-64"
-          />
-          {hasActiveFilters && (
+      <TrendTableHeader
+        freshness={freshness}
+        globalFilter={globalFilter}
+        setGlobalFilter={setGlobalFilter}
+        hasActiveFilters={hasActiveFilters}
+        onExport={handleExportCsv}
+        shareButton={
+          hasActiveFilters ? (
             <ShareButton variant="link" className="!static" />
-          )}
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            className="flex items-center gap-1.5 rounded-full border border-black/10 bg-white/80 px-3 py-2 text-xs font-semibold text-black/70 transition hover:border-black/20 hover:bg-black/5"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-3.5 w-3.5"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" x2="12" y1="15" y2="3" />
-            </svg>
-            Export CSV
-          </button>
-        </div>
-      </div>
+          ) : undefined
+        }
+      />
 
-      <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-black/60">
-        <span className="uppercase tracking-[0.2em] text-black/40">Vibes</span>
-        {VIBE_OPTIONS.map((option) => (
-          <button
-            key={option.slug}
-            type="button"
-            onClick={() =>
-              setSelectedVibe(selectedVibe === option.slug ? null : option.slug)
-            }
-            className={`rounded-full border px-3 py-1 font-semibold transition ${
-              selectedVibe === option.slug
-                ? "border-black/40 bg-black/10 text-black"
-                : "border-black/10 bg-white text-black/60 hover:border-black/20"
-            }`}
-          >
-            {option.emoji} {option.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-black/60">
-        <span className="uppercase tracking-[0.2em] text-black/40">Genres</span>
-        {GENRE_OPTIONS.map((option) => (
-          <button
-            key={option.slug}
-            type="button"
-            onClick={() =>
-              setSelectedGenre(
-                selectedGenre === option.slug ? null : option.slug,
-              )
-            }
-            className={`rounded-full border px-3 py-1 font-semibold transition ${
-              selectedGenre === option.slug
-                ? "border-black/40 bg-black/10 text-black"
-                : "border-black/10 bg-white text-black/60 hover:border-black/20"
-            }`}
-          >
-            {option.emoji} {option.label}
-          </button>
-        ))}
-      </div>
+      <FilterButtons
+        selectedGenre={selectedGenre}
+        selectedVibe={selectedVibe}
+        onGenreToggle={setSelectedGenre}
+        onVibeToggle={setSelectedVibe}
+      />
 
       {hasActiveFilters && (
-        <div className="mt-3 flex items-center gap-3 text-xs text-black/50">
-          <span>
-            Showing {filteredData.length} of {data.length} results
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedGenre(null);
-              setSelectedVibe(null);
-              setGlobalFilter("");
-            }}
-            className="font-semibold text-blaze underline hover:text-blaze/80"
-          >
-            Clear all filters
-          </button>
-        </div>
+        <ActiveFilters
+          filteredCount={filteredData.length}
+          totalCount={data.length}
+          onClear={handleClearFilters}
+        />
       )}
 
-      <div className="mt-6 overflow-x-auto">
+      {/* Mobile Card View */}
+      <div className="mt-6 md:hidden">
+        <div className="grid gap-3">
+          {filteredData.map((item) => (
+            <MobileCard key={item.id} item={item} />
+          ))}
+        </div>
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block mt-6 overflow-x-auto">
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="border-b border-black/10 text-xs uppercase tracking-[0.2em] text-black/40">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -346,22 +340,7 @@ export function TrendTable({ data }: TrendTableProps) {
       </div>
 
       {filteredData.length === 0 && hasActiveFilters && (
-        <div className="mt-6 rounded-xl border border-dashed border-black/20 bg-black/[0.02] p-8 text-center">
-          <p className="text-sm text-black/60">
-            No results match your filters.
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedGenre(null);
-              setSelectedVibe(null);
-              setGlobalFilter("");
-            }}
-            className="mt-2 text-sm font-semibold text-blaze underline hover:text-blaze/80"
-          >
-            Clear filters
-          </button>
-        </div>
+        <EmptyState onClear={handleClearFilters} />
       )}
     </div>
   );

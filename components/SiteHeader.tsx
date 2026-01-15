@@ -14,20 +14,12 @@ export function SiteHeader() {
           <Link href="/tools" className="hover:text-black">
             Tools
           </Link>
-          <a
-            href="https://gramdominator.com/about"
-            className="hover:text-black"
-            rel="noopener noreferrer"
-          >
+          <Link href="/about" className="hover:text-black">
             About
-          </a>
-          <a
-            href="https://gramdominator.com/contact"
-            className="hover:text-black"
-            rel="noopener noreferrer"
-          >
+          </Link>
+          <Link href="/contact" className="hover:text-black">
             Contact
-          </a>
+          </Link>
         </nav>
       </div>
     </header>

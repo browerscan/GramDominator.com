@@ -5,7 +5,14 @@
 
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import type { AudioTrendRow, HashtagRow } from "./types";
-import { getAudioTrends, getTopHashtags } from "./db";
+import {
+  getAudioTrends,
+  getTopHashtags,
+  clearCache,
+  getQueryMetrics,
+  getCacheStats,
+} from "./db";
+import { logger } from "./logger";
 
 type PagesEnv = Record<string, unknown> & {
   KV?: KVNamespace;
@@ -66,7 +73,7 @@ export async function saveBackupToKV(data: {
       expirationTtl: 604800,
     });
   } catch (error) {
-    console.warn("Failed to save backup to KV:", error);
+    logger.warn("Failed to save backup to KV:", error);
     // Update in-memory cache as last resort
     inMemoryCache = {
       trends: data.trends,
@@ -90,7 +97,7 @@ export async function getTrendsWithFallback(
       return trends;
     }
   } catch (error) {
-    console.warn("Primary database unavailable, trying fallback:", error);
+    logger.warn("Primary database unavailable, trying fallback:", error);
   }
 
   // Try KV backup
@@ -102,11 +109,11 @@ export async function getTrendsWithFallback(
         "json",
       );
       if (backup && backup.length > 0) {
-        console.info("Serving trends from KV backup");
+        logger.info("Serving trends from KV backup");
         return backup.slice(0, limit);
       }
     } catch (error) {
-      console.warn("KV backup unavailable:", error);
+      logger.warn("KV backup unavailable:", error);
     }
   }
 
@@ -115,13 +122,13 @@ export async function getTrendsWithFallback(
     const age = Date.now() - (inMemoryCache.timestamp ?? 0);
     if (age < 3600000) {
       // 1 hour
-      console.info("Serving trends from in-memory cache");
+      logger.info("Serving trends from in-memory cache");
       return inMemoryCache.trends.slice(0, limit);
     }
   }
 
   // Return empty array rather than throwing
-  console.warn("All data sources exhausted, returning empty trends");
+  logger.warn("All data sources exhausted, returning empty trends");
   return [];
 }
 
@@ -138,7 +145,7 @@ export async function getHashtagsWithFallback(
       return hashtags;
     }
   } catch (error) {
-    console.warn(
+    logger.warn(
       "Primary database unavailable for hashtags, trying fallback:",
       error,
     );
@@ -153,11 +160,11 @@ export async function getHashtagsWithFallback(
         "json",
       );
       if (backup && backup.length > 0) {
-        console.info("Serving hashtags from KV backup");
+        logger.info("Serving hashtags from KV backup");
         return backup.slice(0, limit);
       }
     } catch (error) {
-      console.warn("KV backup unavailable for hashtags:", error);
+      logger.warn("KV backup unavailable for hashtags:", error);
     }
   }
 
@@ -165,12 +172,12 @@ export async function getHashtagsWithFallback(
   if (inMemoryCache.hashtags && inMemoryCache.hashtags.length > 0) {
     const age = Date.now() - (inMemoryCache.timestamp ?? 0);
     if (age < 3600000) {
-      console.info("Serving hashtags from in-memory cache");
+      logger.info("Serving hashtags from in-memory cache");
       return inMemoryCache.hashtags.slice(0, limit);
     }
   }
 
-  console.warn("All data sources exhausted, returning empty hashtags");
+  logger.warn("All data sources exhausted, returning empty hashtags");
   return [];
 }
 
@@ -185,11 +192,11 @@ export async function withFallback<T>(
   try {
     return await primaryFn();
   } catch (error) {
-    console.warn(`${errorMessage}:`, error);
+    logger.warn(`${errorMessage}:`, error);
     try {
       return await fallbackFn();
     } catch (fallbackError) {
-      console.error("Fallback also failed:", fallbackError);
+      logger.error("Fallback also failed:", fallbackError);
       throw new Error(`${errorMessage} and fallback unavailable`);
     }
   }
@@ -229,6 +236,7 @@ export async function isFallbackDataStale(
 /**
  * Warm up the cache by loading data into memory
  * Call this during build or on server startup
+ * Enhanced version that also warms up the query cache
  */
 export async function warmupCache(): Promise<void> {
   try {
@@ -243,20 +251,32 @@ export async function warmupCache(): Promise<void> {
       timestamp: Date.now(),
     };
 
-    console.info("Cache warmed up successfully");
+    logger.info("Fallback cache warmed up successfully");
   } catch (error) {
-    console.warn("Failed to warm up cache:", error);
+    logger.warn("Failed to warm up fallback cache:", error);
   }
 }
 
 /**
- * Get cache health status
+ * Invalidate all caches after data updates
+ * Call this after updating audio trends or hashtags
+ */
+export function invalidateAllCaches(): void {
+  clearCache();
+  inMemoryCache = {};
+  logger.info("All caches invalidated");
+}
+
+/**
+ * Get cache health status (enhanced with query metrics)
  */
 export async function getCacheHealth(): Promise<{
   hasKV: boolean;
   hasInMemory: boolean;
   lastUpdate: number | null;
   isStale: boolean;
+  queryMetrics: ReturnType<typeof getQueryMetrics>;
+  cacheStats: ReturnType<typeof getCacheStats>;
 }> {
   const kv = getKV();
   const lastUpdate = await getLastBackupTimestamp();
@@ -267,5 +287,7 @@ export async function getCacheHealth(): Promise<{
     hasInMemory: !!inMemoryCache.trends || !!inMemoryCache.hashtags,
     lastUpdate,
     isStale,
+    queryMetrics: getQueryMetrics(),
+    cacheStats: getCacheStats(),
   };
 }

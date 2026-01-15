@@ -5,9 +5,20 @@ import type { Metadata } from "next";
 
 import { HashtagPanel } from "@/components/HashtagPanel";
 import { TrendChart } from "@/components/TrendChart";
+import { JsonLd } from "@/components/JsonLd";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { ShareButton } from "@/components/ShareButton";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { AudioViewTracker } from "@/components/AudioViewTracker";
+import { RecentlyViewed } from "@/components/RecentlyViewed";
+import { YouTubeTutorials } from "@/components/YouTubeTutorials";
+import { CreatorExamples } from "@/components/CreatorExamples";
+import { RedditDiscussions } from "@/components/RedditDiscussions";
+import {
+  fetchYouTubeVideos,
+  fetchTikTokCreators,
+  fetchRedditPosts,
+} from "@/lib/proxy-grid";
 import {
   getAudioById,
   getAudioHistory,
@@ -24,6 +35,7 @@ import {
   getGrowthLabel,
 } from "@/lib/format";
 import { buildAudioSlug, parseAudioSlug, slugify } from "@/lib/slug";
+import { buildMusicRecordingSchema, getSiteUrl } from "@/lib/seo";
 
 export const runtime = "edge";
 export const revalidate = 3600;
@@ -42,7 +54,7 @@ export async function generateMetadata({
   if (!audio) return {};
 
   const title = `${audio.title} TikTok Trends & Analytics`;
-  const description = `Is ${audio.title} viral right now? Track usage, growth rate, and creator tips on GramDominator.`;
+  const description = `Is "${audio.title}" viral? Track TikTok usage, growth rate, and get creator tips with GramDominator analytics.`;
   const baseUrl =
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://gramdominator.com";
   const canonical = `${baseUrl}/audio/${buildAudioSlug(audio.title, audio.id)}`;
@@ -176,20 +188,37 @@ export default async function AudioDetailPage({ params }: PageProps) {
     { label: audio.title },
   ];
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "MusicRecording",
+  const youtubeQuery = `${audio.title} tiktok tutorial`;
+  const youtubeResponse = await fetchYouTubeVideos(youtubeQuery, {
+    maxResults: 5,
+  });
+
+  const creatorQuery = audio.title.split(" ")[0];
+  const creatorsResponse = await fetchTikTokCreators(creatorQuery, {
+    maxResults: 6,
+  });
+
+  const redditQuery = `${audio.title} tiktok`;
+  const redditResponse = await fetchRedditPosts(redditQuery, { maxResults: 5 });
+
+  const audioUrl = `${getSiteUrl()}/audio/${slug}`;
+  const datePublished = audio.updated_at
+    ? new Date(audio.updated_at).toISOString()
+    : undefined;
+
+  const musicRecordingSchema = buildMusicRecordingSchema({
     name: audio.title,
-    byArtist: audio.author,
-    interactionStatistic: {
-      "@type": "InteractionCounter",
-      interactionType: "https://schema.org/ListenAction",
-      userInteractionCount: audio.play_count ?? 0,
-    },
-  };
+    author: audio.author,
+    playCount: audio.play_count,
+    genre: audio.genre,
+    thumbnailUrl: audio.cover_url,
+    url: audioUrl,
+    datePublished,
+  });
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 pb-16 pt-12">
+      <AudioViewTracker audio={audio} />
       <Breadcrumbs items={breadcrumbs} className="mb-6" />
 
       <section className="grid gap-8 md:grid-cols-[1.5fr_0.7fr]">
@@ -466,6 +495,7 @@ export default async function AudioDetailPage({ params }: PageProps) {
 
         <div className="space-y-6">
           <HashtagPanel hashtags={hashtags} />
+          <RecentlyViewed />
           <div className="glass-card rounded-2xl p-6">
             <p className="text-xs uppercase tracking-[0.2em] text-black/40">
               Creator playbook
@@ -477,6 +507,26 @@ export default async function AudioDetailPage({ params }: PageProps) {
             </ul>
           </div>
         </div>
+      </section>
+
+      <section className="mt-14 space-y-8">
+        <YouTubeTutorials
+          audioTitle={audio.title}
+          videos={youtubeResponse.videos}
+          error={youtubeResponse.error?.message}
+        />
+
+        <CreatorExamples
+          hashtag={creatorQuery}
+          posts={creatorsResponse.posts}
+          error={creatorsResponse.error?.message}
+        />
+
+        <RedditDiscussions
+          query={redditQuery}
+          posts={redditResponse.posts}
+          error={redditResponse.error?.message}
+        />
       </section>
 
       <section className="mt-14">
@@ -536,48 +586,41 @@ export default async function AudioDetailPage({ params }: PageProps) {
         </div>
       </section>
 
-      <script
-        type="application/ld+json"
-        // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "FAQPage",
-            mainEntity: [
-              {
-                "@type": "Question",
-                name: "Is this audio currently viral on TikTok?",
-                acceptedAnswer: {
-                  "@type": "Answer",
-                  text: `${audio.title} is ranked #${audio.rank ?? "n/a"} with a growth rate of ${formatPercent(audio.growth_rate ?? 0)}.`,
-                },
+      {/* Structured Data */}
+      <JsonLd data={musicRecordingSchema} />
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: [
+            {
+              "@type": "Question",
+              name: "Is this audio currently viral on TikTok?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: `${audio.title} is ranked #${audio.rank ?? "n/a"} with a growth rate of ${formatPercent(audio.growth_rate ?? 0)}.`,
               },
-              {
-                "@type": "Question",
-                name: "How often is the data updated?",
-                acceptedAnswer: {
-                  "@type": "Answer",
-                  text: "Trends refresh every six hours and this page reflects the latest snapshot.",
-                },
+            },
+            {
+              "@type": "Question",
+              name: "How often is the data updated?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Trends refresh every six hours and this page reflects the latest snapshot.",
               },
-              {
-                "@type": "Question",
-                name: "What hashtags should I pair with this sound?",
-                acceptedAnswer: {
-                  "@type": "Answer",
-                  text: `Suggested tags: ${hashtags
-                    .slice(0, 8)
-                    .map((tag) => `#${tag}`)
-                    .join(" ")}`,
-                },
+            },
+            {
+              "@type": "Question",
+              name: "What hashtags should I pair with this sound?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: `Suggested tags: ${hashtags
+                  .slice(0, 8)
+                  .map((tag) => `#${tag}`)
+                  .join(" ")}`,
               },
-            ],
-          }),
+            },
+          ],
         }}
       />
     </div>
